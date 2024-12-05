@@ -5,9 +5,11 @@ import torch_frame
 from torch import Tensor
 from torch_frame.data.stats import StatType
 from torch_frame.nn.models import ResNet
-from torch_geometric.nn import HeteroConv, LayerNorm, PositionalEncoding, SAGEConv
+from torch_geometric.nn import LayerNorm, PositionalEncoding
 from torch_geometric.typing import EdgeType, NodeType
 
+from relbench.custom.hetero_conv import HeteroConv
+from relbench.custom.sage_conv import SAGEConv
 
 class HeteroEncoder(torch.nn.Module):
     r"""HeteroEncoder based on PyTorch Frame.
@@ -165,9 +167,11 @@ class HeteroGraphSAGE(torch.nn.Module):
         num_sampled_nodes_dict: Optional[Dict[NodeType, List[int]]] = None,
         num_sampled_edges_dict: Optional[Dict[EdgeType, List[int]]] = None,
     ) -> Dict[NodeType, Tensor]:
-        for _, (conv, norm_dict) in enumerate(zip(self.convs, self.norms)):
-            x_dict = conv(x_dict, edge_index_dict)
+        message_dicts = {}
+        for i, (conv, norm_dict) in enumerate(zip(self.convs, self.norms)):
+            x_dict, message_dict = conv(x_dict, edge_index_dict)
+            message_dicts[f"layer_{i}"] = message_dict
             x_dict = {key: norm_dict[key](x) for key, x in x_dict.items()}
             x_dict = {key: x.relu() for key, x in x_dict.items()}
 
-        return x_dict
+        return x_dict, message_dicts
